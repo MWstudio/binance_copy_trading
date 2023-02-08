@@ -36,6 +36,14 @@ def is_in_position(symbol):
     else:
         return True
 
+def get_precision(symbol):
+    infos = client.futures_exchange_info()['symbols']
+    for info in infos:
+        if info['symbol'] == symbol:
+            precision = info['quantityPrecision']
+            break
+    return precision
+
 def get_my_position():
     my_position = []
     client = Client(API_Key, Secret_Key)
@@ -101,6 +109,7 @@ while True:
             res = requests.post(url = position_url, json = user_payload)
             res = res.json()
             ranker_positions = res['data']['otherPositionRetList']
+
         except:
             time.sleep(10)
 
@@ -123,8 +132,11 @@ while True:
                     client = Client(API_Key, Secret_Key)
                     my_balance = float(get_my_balance()) / 4
                     now_price = client.futures_symbol_ticker(symbol = symbol)
+                    precision = get_precision(symbol)
                     now_price = float(now_price['price'])
-                    order_quantity = round(my_balance * 20 / now_price, 1) 
+                    order_quantity = my_balance * 20 / now_price
+                    order_quantity = float("{:.{}f}".format(order_quantity, precision))
+
                     create_order(symbol, position, order_quantity)
                     my_position['symbol'] = symbol
                     my_position['position'] = position
