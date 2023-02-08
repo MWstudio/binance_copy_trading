@@ -1,6 +1,8 @@
-import requests, time
+import requests, time, telegram
 from binance.client import Client
 from datetime import datetime
+chat_id = -671910119
+bot = telegram.Bot(token='2075531825:AAFKBzPYwey4-TF6dIoimSS3hVH6tYzM1PA')
 
 position_url = 'https://www.binance.com/bapi/futures/v1/public/future/leaderboard/getOtherPosition'
 #4C6AAFDF7B5D9C8B1EA324F1D68FFE31
@@ -81,6 +83,7 @@ def close_order(symbol, position, quantity):
             )
             now = datetime.now()
             print('position close:', symbol, now)
+            bot.sendMessage(chat_id=chat_id, text=symbol + "포지션 정리 - " + now)
 
 def create_order(symbol, position, order_quantity):
     client = Client(API_Key, Secret_Key)
@@ -93,6 +96,7 @@ def create_order(symbol, position, order_quantity):
         quantity = order_quantity
     )
     now = datetime.now()
+    bot.sendMessage(chat_id=chat_id, text=symbol + "포지션 진입 - " + now)
     print('position open:', symbol, now)
 # try:
 #     create_order('BTCUSDT', 'BUY')
