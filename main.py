@@ -1,10 +1,11 @@
 import requests, time
 from binance.client import Client
+from datetime import datetime
 
 position_url = 'https://www.binance.com/bapi/futures/v1/public/future/leaderboard/getOtherPosition'
-
+#4C6AAFDF7B5D9C8B1EA324F1D68FFE31
 user_payload = {
-    'encryptedUid':'696961C0320A72C4419C0ECA97CA05F6',
+    'encryptedUid':'4C6AAFDF7B5D9C8B1EA324F1D68FFE31',
     'tradeType':'PERPETUAL'
 }
 
@@ -55,22 +56,27 @@ def change_leverage(symbol):
     except:
         pass
 
-def close_order(symbol, postion):
+def close_order(symbol, position, quantity):
     client = Client(API_Key, Secret_Key)
     orders = client.futures_account()['positions']
     for order in orders:
         if float(order['maintMargin']) > 0 and order['symbol'] == symbol:
-            pass
+            if position == 'BUY':
+                position = 'SELL'
+            else:
+                position = 'BUY'
+            client.futures_create_order(
+                symbol = symbol,
+                type = 'MARKET',
+                side = position,
+                quantity = quantity
+            )
+            now = datetime.now()
+            print('position close:', symbol, now)
 
-def create_order(symbol, position):
+def create_order(symbol, position, order_quantity):
     client = Client(API_Key, Secret_Key)
     change_leverage(symbol)
-    my_balance = float(get_my_balance())
-    now_price = client.futures_symbol_ticker(symbol = symbol)
-    now_price = float(now_price['price'])
-
-    order_quantity = round(my_balance * 20 / now_price, 2) 
-    print('order_quantity:', order_quantity)
 
     client.futures_create_order(
         symbol = symbol,
@@ -78,7 +84,8 @@ def create_order(symbol, position):
         side = position,
         quantity = order_quantity
     )
-
+    now = datetime.now()
+    print('position open:', symbol, now)
 # try:
 #     create_order('BTCUSDT', 'BUY')
 # except:
@@ -89,40 +96,47 @@ while True:
     ranker_positions = []
     ranker_position_symbol = []
     my_position = {}
-
     try:
-        res = requests.post(url = position_url, json = user_payload)
-        res = res.json()
-        ranker_positions = res['data']['otherPositionRetList']
-    except:
-        time.sleep(10)
+        try:
+            res = requests.post(url = position_url, json = user_payload)
+            res = res.json()
+            ranker_positions = res['data']['otherPositionRetList']
+        except:
+            time.sleep(10)
 
-    for ranker_position in ranker_positions:
-        symbol = ranker_position['symbol']
-        amount = ranker_position['amount']
-        roe = float("{:.2f}".format(ranker_position['roe']))*100 #진입 가격 비교
-        ranker_position_symbol.append(symbol)
+        for ranker_position in ranker_positions:
+            symbol = ranker_position['symbol']
+            amount = ranker_position['amount']
+            roe = float("{:.2f}".format(ranker_position['roe']))*100 #진입 가격 비교
+            ranker_position_symbol.append(symbol)
 
-        if amount > 0:
-            position = 'BUY'
-        elif amount < 0:
-            position = 'SELL'
-        else:
-            print('what position?')
+            if amount > 0:
+                position = 'BUY'
+            elif amount < 0:
+                position = 'SELL'
+            else:
+                print('what position?')
 
-        if symbol not in my_positions: #포지션 진입하지 않은 symbol일때
-            print('start position:', symbol)
-            if abs(roe) > 1.5: #
-                create_order(symbol, position)
-                my_position['symbol'] = symbol
-                my_position['position'] = position
-                my_positions.append(my_position)
-    
-    for position in my_positions:
-        if position['symbol'] not in ranker_position_symbol:
-            close_order(symbol, position['position'])
+            
+            if not is_in_position(symbol): #포지션 진입하지 않은 symbol일때
+                if abs(roe) < 1.5: 
+                    client = Client(API_Key, Secret_Key)
+                    my_balance = float(get_my_balance()) / 4
+                    now_price = client.futures_symbol_ticker(symbol = symbol)
+                    now_price = float(now_price['price'])
+                    order_quantity = round(my_balance * 20 / now_price, 1) 
+                    create_order(symbol, position, order_quantity)
+                    my_position['symbol'] = symbol
+                    my_position['position'] = position
+                    my_position['quantity'] = order_quantity
+                    my_positions.append(my_position)
+        
+        for position in my_positions:
+            if position['symbol'] not in ranker_position_symbol:
+                close_order(symbol, position['position'], position['quantity'])
 
-    break
+    except Exception as e:
+        print(e)
 
 '''
 ranker_position
