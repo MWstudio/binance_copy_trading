@@ -1,13 +1,15 @@
-import requests, time, telegram
+import requests, time
+import telegram
 from binance.client import Client
 from datetime import datetime
+
 chat_id = -671910119
 bot = telegram.Bot(token='2075531825:AAFKBzPYwey4-TF6dIoimSS3hVH6tYzM1PA')
 
 position_url = 'https://www.binance.com/bapi/futures/v1/public/future/leaderboard/getOtherPosition'
 #4C6AAFDF7B5D9C8B1EA324F1D68FFE31
 user_payload = {
-    'encryptedUid':'4C6AAFDF7B5D9C8B1EA324F1D68FFE31',
+    'encryptedUid':'391C2981F65164BECCB630D3462C5813',
     'tradeType':'PERPETUAL'
 }
 
@@ -75,15 +77,17 @@ def close_order(symbol, position, quantity):
                 position = 'SELL'
             else:
                 position = 'BUY'
+                
             client.futures_create_order(
                 symbol = symbol,
                 type = 'MARKET',
                 side = position,
                 quantity = quantity
             )
+
             now = datetime.now()
-            print('position close:', symbol, now)
-            bot.sendMessage(chat_id=chat_id, text=symbol + "포지션 정리 - " + now)
+            print('position close:', symbol, now.strftime('%Y-%m-%d %H:%M:%S'))
+            bot.sendMessage(chat_id=chat_id, text=symbol + "포지션 정리 - " + now.strftime('%Y-%m-%d %H:%M:%S'))
 
 def create_order(symbol, position, order_quantity):
     client = Client(API_Key, Secret_Key)
@@ -95,29 +99,27 @@ def create_order(symbol, position, order_quantity):
         side = position,
         quantity = order_quantity
     )
+
     now = datetime.now()
-    bot.sendMessage(chat_id=chat_id, text=symbol + "포지션 진입 - " + now)
-    print('position open:', symbol, now)
-# try:
-#     create_order('BTCUSDT', 'BUY')
-# except:
-#     print('start position error')
+    if position == 'BUY':
+        pos = 'LONG'
+    else:
+        pos = 'SHORT'
+    bot.sendMessage(chat_id=chat_id, text=symbol + ' ' + pos + " 진입 - " + now.strftime('%Y-%m-%d %H:%M'))
+    print('position open:', symbol, now.strftime('%Y-%m-%d %H:%M:%S'))
+
 my_positions = []
 
 while True:
+    time.sleep(3)
     ranker_positions = []
     ranker_position_symbol = []
-    my_position = {}
     try:
-        try:
-            res = requests.post(url = position_url, json = user_payload)
-            res = res.json()
-            ranker_positions = res['data']['otherPositionRetList']
-
-        except:
-            time.sleep(10)
-
+        res = requests.post(url = position_url, json = user_payload)
+        res = res.json()
+        ranker_positions = res['data']['otherPositionRetList']
         for ranker_position in ranker_positions:
+            my_position = {}
             symbol = ranker_position['symbol']
             amount = ranker_position['amount']
             roe = float("{:.2f}".format(ranker_position['roe']))*100 #진입 가격 비교
@@ -127,12 +129,8 @@ while True:
                 position = 'BUY'
             elif amount < 0:
                 position = 'SELL'
-            else:
-                print('what position?')
-
-            
             if not is_in_position(symbol): #포지션 진입하지 않은 symbol일때
-                if abs(roe) < 1.5: 
+                if abs(roe) <= 30: 
                     client = Client(API_Key, Secret_Key)
                     my_balance = float(get_my_balance()) / 4
                     now_price = client.futures_symbol_ticker(symbol = symbol)
@@ -142,39 +140,25 @@ while True:
                     order_quantity = float("{:.{}f}".format(order_quantity, precision))
 
                     create_order(symbol, position, order_quantity)
+
                     my_position['symbol'] = symbol
                     my_position['position'] = position
                     my_position['quantity'] = order_quantity
                     my_positions.append(my_position)
-        
+
+        remove_position = []
+
         for position in my_positions:
             if position['symbol'] not in ranker_position_symbol:
-                close_order(symbol, position['position'], position['quantity'])
-
+                if is_in_position(position['symbol']):
+                    close_order(position['symbol'], position['position'], position['quantity'])
+                remove_position.append(position)
+        
+        for position in remove_position:
+            try:
+                my_positions.remove(position)
+            except Exception as e:
+                print(e)
+        
     except Exception as e:
         print(e)
-
-'''
-ranker_position
-[
-    {'symbol': 'INJUSDT', 
-    'entryPrice': 3.968271233726, 
-    'markPrice': 4.043, 
-    'pnl': 120.53750601, 
-    'roe': 0.18483495, 
-    'updateTime': [2023, 2, 7, 8, 5, 32, 144000000], 
-    'amount': 1613.0, 
-    'updateTimeStamp': 1675757132144, 
-    'yellow': False, 
-    'tradeBefore': False, 
-    'leverage': 10
-}, 
-{'symbol': 'ALICEUSDT', 'entryPrice': 2.1, 'markPr
-ice': 2.17034561, 'pnl': 125.61615577, 'roe': 0.48964893, 'updateTime': [2023, 2, 8, 5, 42, 9, 202000000], 'amount': 1785.7, 'updateTimeStamp': 1675834929202, '
-yellow': True, 'tradeBefore': False, 'leverage': 20}, {'symbol': 'LDOUSDT', 'entryPrice': 2.584857142857, 'markPrice': 2.5694, 'pnl': -54.09999, 'roe': -0.06015
-856, 'updateTime': [2023, 2, 8, 6, 47, 32, 905000000], 'amount': 3500, 'updateTimeStamp': 1675838852905, 'yellow': True, 'tradeBefore': False, 'leverage': 10},
-{'symbol': 'SANDUSDT', 'entryPrice': 0.8954999999999, 'markPrice': 0.8866, 'pnl': -133.49985, 'roe': -0.20076675, 'updateTime': [2023, 2, 8, 5, 45, 7, 810000000
-], 'amount': 15000, 'updateTimeStamp': 1675835107810, 'yellow': True, 'tradeBefore': False, 'leverage': 20}, {'symbol': 'JASMYUSDT', 'entryPrice': 0.00800658333
-33, 'markPrice': 0.0077425, 'pnl': -158.448, 'roe': -0.68215693, 'updateTime': [2023, 2, 8, 8, 15, 50, 486000000], 'amount': 600000, 'updateTimeStamp': 16758441
-50486, 'yellow': True, 'tradeBefore': False, 'leverage': 20}]
-'''
