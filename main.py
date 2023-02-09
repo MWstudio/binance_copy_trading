@@ -5,7 +5,7 @@ from datetime import datetime
 
 chat_id = -671910119
 bot = telegram.Bot(token='2075531825:AAFKBzPYwey4-TF6dIoimSS3hVH6tYzM1PA')
-
+set_leverage = 5
 position_url = 'https://www.binance.com/bapi/futures/v1/public/future/leaderboard/getOtherPosition'
 #4C6AAFDF7B5D9C8B1EA324F1D68FFE31
 user_payload = {
@@ -62,7 +62,7 @@ def get_my_position():
 
 def change_leverage(symbol):
     client = Client(API_Key, Secret_Key)
-    client.futures_change_leverage(symbol = symbol, leverage=20)
+    client.futures_change_leverage(symbol = symbol, leverage=set_leverage)
     try:
         client.futures_change_margin_type(symbol = symbol, marginType="ISOLATED")
     except:
@@ -130,13 +130,13 @@ while True:
             elif amount < 0:
                 position = 'SELL'
             if not is_in_position(symbol): #포지션 진입하지 않은 symbol일때
-                if abs(roe) <= 30: 
+                if abs(roe) <= 2: 
                     client = Client(API_Key, Secret_Key)
                     my_balance = float(get_my_balance()) / 4
                     now_price = client.futures_symbol_ticker(symbol = symbol)
                     precision = get_precision(symbol)
                     now_price = float(now_price['price'])
-                    order_quantity = my_balance * 20 / now_price
+                    order_quantity = my_balance * set_leverage / now_price
                     order_quantity = float("{:.{}f}".format(order_quantity, precision))
 
                     create_order(symbol, position, order_quantity)
